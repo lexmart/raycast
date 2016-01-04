@@ -20,3 +20,5 @@ Todo:
 ![Alt text](/misc/raycaster_screenshot.png?raw=true "Screenshot")
 
 Thanks to Casey Muratori (handmadehero.org) for his help on the Windows platform layer.
+
+Graphics are not mine, they belong to ID Software and Reddit.
