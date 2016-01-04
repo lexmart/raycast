@@ -30,6 +30,14 @@ v2 operator*(real32 C, v2 B)
     return Result;
 }
 
+v2 operator/(v2 A, real32 C)
+{
+    v2 Result;
+    Result.X = A.X / C;
+    Result.Y = A.Y / C;
+    return Result;
+}
+
 real32 Floor(real32 Number)
 {
     return (real32)((int)Number);
@@ -45,6 +53,11 @@ real32 DegreesToRadians(real32 Degrees)
     return (Degrees / 360.0f) * 2 * Pi32;
 }
 
+real32 RadiansToDegrees(real32 Radians)
+{
+    return (Radians / (2.0f * Pi32)) * 360.0f;
+}
+
 real32 DistanceBetweenVectors(v2 A, v2 B)
 {
     real32 Dx = A.X - B.X;
@@ -55,6 +68,21 @@ real32 DistanceBetweenVectors(v2 A, v2 B)
 real32 VectorMagnitude(v2 Vector)
 {
     return sqrtf(Vector.X * Vector.X + Vector.Y * Vector.Y);
+}
+
+v2 Normalize(v2 Vector)
+{
+    real32 Mag = VectorMagnitude(Vector);
+    if(Mag == 0)
+    {
+        Mag = .00001f;
+    }
+    return Vector / Mag;
+}
+
+real32 DotProduct(v2 A, v2 B)
+{
+    return ((A.X * B.X) + (A.Y * B.Y));
 }
 
 global_variable real32 SinTable[360 * 100];
@@ -70,30 +98,26 @@ void PrecomputeTrig()
 
 real32 Sin(real32 Angle)
 {
-    // TODO: This is dumb
-    while(Angle < 0)
-    {
-        Angle += 360;
-    }
-    while(Angle >= 360)
-    {
-        Angle -= 360;
-    }
-    int AngleIndex = (int)(Angle * 100.0f);
+    int AngleIndex = (int)(Angle * 100.0f) % (360 * 100);
+    if(AngleIndex < 0) AngleIndex = (360 * 100) + AngleIndex;
     return SinTable[AngleIndex];
 }
 
 real32 Cos(real32 Angle)
 {
-    // TODO: This is dumb
-    while(Angle < 0)
-    {
-        Angle += 360;
-    }
-    while(Angle >= 360)
-    {
-        Angle -= 360;
-    }
-    int AngleIndex = (int)(Angle * 100.0f);
+    int AngleIndex = (int)(Angle * 100.0f) % (360 * 100);
+    if(AngleIndex < 0) AngleIndex = (360 * 100) + AngleIndex;
     return CosTable[AngleIndex];
+}
+
+int IntegerSign(int Integer)
+{
+    if(Integer < 0)
+    {
+        return -1;
+    }
+    else
+    {
+        return 1;
+    }
 }

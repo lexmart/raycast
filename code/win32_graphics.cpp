@@ -26,7 +26,6 @@ typedef double real64;
 
 #include "windows.h"
 #include "stdio.h"
-#include "malloc.h"
 
 #include "win32_graphics.h"
 

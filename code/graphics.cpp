@@ -16,11 +16,11 @@
 // NOTE: Zero is empty.
 bool32 Map[MAP_WIDTH][MAP_HEIGHT] = 
 {{1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
- {1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1},
- {1,0,1,0,1,1,1,1,0,1,0,0,0,0,0,0,0,0,0,1},
- {1,0,1,0,1,1,1,1,0,1,0,0,0,0,0,0,0,0,0,1},
+ {2,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1},
+ {1,0,0,0,1,1,1,1,0,1,0,0,0,0,0,0,0,0,0,1},
+ {2,0,1,0,1,1,1,1,0,1,0,0,0,0,0,0,0,0,0,1},
  {1,0,1,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1},
- {1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1},
+ {2,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1},
  {1,0,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,1},
  {1,0,1,0,1,0,0,1,0,0,0,0,0,0,0,0,2,0,0,1},
  {1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,2,0,0,1},
@@ -161,6 +161,107 @@ CastRay(v2 Position, real32 Angle)
     return Hit;
 }
 
+
+// TODO: Horizontal wall bug
+//       360 degrees bug
+internal void
+RenderPlane(screen_buffer *Buffer, image Image, v2 PlanePosition)
+{
+    //real32 PlaneWidth = 16.0f;
+    real32 PlaneHeight = 8.0f;
+    real32 Distance = DistanceBetweenVectors(Position, PlanePosition);
+    int Height = (int)((PlaneHeight / Distance) * DistanceToPlane);
+    int Width = Height;
+
+    if(Width > Buffer->Width)
+    {
+        Width = Buffer->Width;
+        Height = Width;
+    }
+
+    uint32 *Pixel = (uint32 *)Buffer->Memory;
+    Pixel += (Buffer->Width / 2) - (Width / 2);
+    Pixel += ((Buffer->Height / 2) - (Height / 2)) * Buffer->Width;
+   
+    v2 Direction = Normalize(PlanePosition - Position);
+
+    // TODO: Don't use math.h trig functions outside of initialization, it's slow.
+    ray_hit Hit = CastRay(Position, RadiansToDegrees(atan2f(-Direction.Y, Direction.X)));
+    real32 WallDistance = Hit.Distance;
+    real32 PlaneDistance = VectorMagnitude(PlanePosition - Position);
+    if(WallDistance < PlaneDistance)
+    {
+        return;
+    }
+
+    v2 Plane = {Cos(Angle), -Sin(Angle)};
+    Plane = DistanceToPlane * Plane;
+
+    real32 AngleBetween = abs(RadiansToDegrees(acosf(DotProduct(Plane, Direction) / VectorMagnitude(Plane))));
+    if(AngleBetween > (FOV / 2.0f))
+    {
+        return;
+    }
+    
+    v2 PlaneOffset = ((VectorMagnitude(Plane) / (DotProduct(Direction, Plane) / VectorMagnitude(Plane))) * Direction) - Plane;
+    
+    int Offset = (int)VectorMagnitude(PlaneOffset);
+
+    // TODO: Think about how to get horizontal offset better. There seems to be a cleaner way to do this.
+    if(Plane.Y > 0 && PlaneOffset.X > 0)
+    {
+        Offset = -Offset;
+    }
+    else if(Plane.Y < 0 && PlaneOffset.X < 0)
+    {
+        Offset = -Offset;
+    }
+    
+    Pixel += Offset;
+
+    for(int Y = 0; Y < Height; Y++)
+    {
+        uint32 *RowPixel = Pixel;
+        for(int X = 0; X < Width; X++)
+        {
+            if(RowPixel < Buffer->Memory || RowPixel >= ((uint32 *)Buffer->Memory + Buffer->Width * Buffer->Height))
+            {
+                continue;
+            }
+            
+            if(Buffer->Width / 2 - Width / 2 + Offset + X >= Buffer->Width)
+            {
+                break;
+            }
+
+            if(Buffer->Width / 2 - Width / 2 + Offset + X < 0)
+            {
+                RowPixel++;
+                continue;
+            }
+
+            uint32 Color = GetPixelFromImage(Image, (real32)X/Width, (real32)Y/Height);
+            if(Color == 0xff00ff)
+            {
+                RowPixel++;
+                continue;
+            }
+
+            real32 Shading = (32.0f - VectorMagnitude(PlanePosition - Position)) / 32.0f;
+            if(Shading > 1.0f)
+            {
+                Shading = 1.0f;
+            }
+            if(Shading < 0.0f)
+            {
+                Shading = 0.0f;
+            }
+            *RowPixel++ = ShadeColor(Color, 1.0f);
+        }
+        Pixel += Buffer->Width;
+    }
+}
+
 internal void
 ClearScreen(screen_buffer *Buffer)
 {
@@ -171,9 +272,11 @@ ClearScreen(screen_buffer *Buffer)
     }
 }
 
-global_variable image Images[4];
+global_variable image Images[5];
 global_variable image CeilingImage;
 global_variable image FloorImage;
+global_variable image BulletImage;
+global_variable image EnemyImage;
 global_variable bool32 Initialized = false;
 
 internal void 
@@ -187,9 +290,15 @@ UpdateAndRender(input *Input,
         Images[1] = LoadBMP("textures/gray.bmp");
         Images[2] = LoadBMP("textures/cyan.bmp");
         Images[3] = LoadBMP("textures/red.bmp");
+        Images[4] = LoadBMP("textures/enemy.bmp");
         CeilingImage = Images[2];
         FloorImage = Images[3];
+        EnemyImage = Images[4];
+        BulletImage = LoadBMP("textures/bullet.bmp");
+        Initialized = true;
     }
+
+// NOTE: Updating
 
     if(Input->Left.IsDown)
     {
@@ -216,7 +325,8 @@ UpdateAndRender(input *Input,
         Velocity.X = 0.0f;
         Velocity.Y = 0.0f;
     }
-
+    
+    // TODO: Fix bug in movement code, can move diagonally through walls
     if(GetCube(Position + Velocity) == 0)
     {
         Position = Position + Velocity;
@@ -235,6 +345,29 @@ UpdateAndRender(input *Input,
             Position = Position + DeltaY;
         }
     }
+
+
+    local_persist v2 PlanePosition = {24.0f, 24.0f + 64.0f - 8.0f};
+    v2 DirectionToPlayer = Normalize(Position - PlanePosition);
+    PlanePosition = PlanePosition + 0.5f * DirectionToPlayer;    
+
+    local_persist v2 BulletPosition = {};
+    local_persist v2 BulletVelocity = {};
+    local_persist bool32 BulletActive = false;
+    local_persist real32 BulletSpeed = 5.0f;
+
+    if(Input->Space.IsDown && !Input->Space.WasDown)
+    {
+        BulletActive = true;
+        BulletPosition = Position;
+        BulletVelocity.X = BulletSpeed * Cos(Angle);
+        BulletVelocity.Y = BulletSpeed * -Sin(Angle);
+    }    
+
+    BulletPosition = BulletPosition + BulletVelocity;
+
+    
+// NOTE: Rendering
 
     ClearScreen(Buffer);
 
@@ -326,5 +459,8 @@ UpdateAndRender(input *Input,
 
         Pixel++;
         CurrentAngle -= AngleStep;
-    }    
+    }
+
+    RenderPlane(Buffer, EnemyImage, PlanePosition);
+    RenderPlane(Buffer, BulletImage, BulletPosition);
 }
