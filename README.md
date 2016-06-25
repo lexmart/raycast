@@ -1,5 +1,6 @@
 # raycast
 A ray casting graphics renderer
+
 Written completely from scratch with no external libraries, just the Windows API.
 
 ![Alt text](/misc/raycaster_screenshot.png?raw=true "Screenshot")
