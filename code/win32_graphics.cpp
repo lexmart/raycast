@@ -1,5 +1,3 @@
-// next day to watch 015
-
 #include <stdint.h>
 #include <math.h>
 
